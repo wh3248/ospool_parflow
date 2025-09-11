@@ -6,6 +6,7 @@ mkdir -p parflow/bin
 mkdir -p parflow/lib
 mkdir -p parflow/other_lib
 mkdir -p parflow/openmpi
+mkdir -p parflow/pmix
 #scp hmei-hydro@verde.princeton.edu:/home/SHARED/software/parflow/7c8e7f0/bin/* parflow/bin
 #scp hmei-hydro@verde.princeton.edu:/home/SHARED/software/parflow/7c8e7f0/lib/* parflow/lib
 #scp hmei-hydro@verde.princeton.edu:/usr/local/netcdf/gcc/hdf5-1.10.6/openmpi-4.1.0/4.7.4/lib64/libnetcdf.so.18* parflow/other_lib
@@ -25,4 +26,6 @@ mkdir -p parflow/openmpi
 #scp hmei-hydro@verde.princeton.edu:/usr/lib64/libevent_pthreads-2.1.so.6* parflow/other_lib
 #scp hmei-hydro@verde.princeton.edu:/usr/lib64/libaec.so.0* parflow/other_lib
 #scp hmei-hydro@verde.princeton.edu:/usr/lib64/libcrypto.so* parflow/other_lib
+#scp hmei-hydro@verde.princeton.edu:/usr/lib64/libpmix.so.2* parflow/other_lib
 #scp -r hmei-hydro@verde.princeton.edu:/usr/local/openmpi/4.1.0 parflow/openmpi
+#scp -r hmei-hydro@verde.princeton.edu:/usr/share/pmix/* parflow/pmix
