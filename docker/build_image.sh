@@ -12,7 +12,6 @@ else
     echo "Remove dangling images"
     ${DOCKER} rmi --force $(${DOCKER} images -f "dangling=true" -q)
 fi
-scp verde.princeton.edu:/usr/lib64/libsz.so* other
 ${DOCKER} build -t ${IMAGE_NAME}:${IMAGE_VERSON} -f Dockerfile .
 if [ $? -ne 0 ]; then
     echo Docker image build failed
