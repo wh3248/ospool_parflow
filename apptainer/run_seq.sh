@@ -1,0 +1,1 @@
+apptainer shell --shell /bin/sh parflow_seq.sif
