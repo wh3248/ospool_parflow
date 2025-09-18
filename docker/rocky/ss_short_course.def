@@ -1,0 +1,109 @@
+
+Bootstrap: docker
+From: quay.io/jupyter/datascience-notebook
+
+%environment
+    export DEBIAN_FRONTEND=noninteractive
+    export BASE_PATH=/opt/parflow_build
+    export CMAKE=$BASE_PATH/parflow/dependencies/cmake/bin/cmake
+    export CTEST=$BASE_PATH/parflow/dependencies/cmake/bin/ctest
+    export HDF5_DIR=/opt/hdf5
+    export NETCDF_DIR=/opt/netcdf
+    export HYPRE_DIR=/opt/hypre
+    export PARFLOW_DIR=/opt/parflow/
+    export LD_LIBRARY_PATH=/opt/parflow/lib:/opt/hypre/lib:/usr/include/:$LD_LIBRARY_PATH
+
+%post
+    # Set timezone
+    ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
+    apt-get update && apt-get install -y tzdata
+    dpkg-reconfigure --frontend noninteractive tzdata
+
+    # Install dependencies
+    apt-get install -y \
+        build-essential \
+        curl \
+        libcurl4 \
+        git \
+        vim \
+        gfortran \
+        libopenblas-dev \
+        liblapack-dev \
+        openssh-client \
+        openssh-server \
+        openmpi-bin \
+        libopenmpi-dev \
+        python3 \
+        python3-pip \
+        python3-venv \
+        tcl-dev \
+        tk-dev
+
+    # Create directories
+    mkdir -p \
+        $BASE_PATH/parflow/build \
+        $BASE_PATH/parflow/dependencies/cmake \
+        $BASE_PATH/parflow/dependencies/silo-src \
+        $BASE_PATH/parflow/dependencies/hdf5-src \
+        $BASE_PATH/parflow/dependencies/hypre-src \
+        $BASE_PATH/parflow/dependencies/netcdf-src
+
+    # Install CMake
+    cd $BASE_PATH/parflow/dependencies/cmake
+    curl -L https://github.com/Kitware/CMake/releases/download/v3.29.0/cmake-3.29.0-linux-x86_64.tar.gz | tar --strip-components=1 -xzv
+
+    # Install HDF5
+    cd $BASE_PATH/parflow/dependencies/hdf5-src
+    curl -L https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.0/src/hdf5-1.12.0.tar.gz | tar --strip-components=1 -xzv
+    CC=mpicc ./configure --prefix=$HDF5_DIR --enable-parallel
+    make -j$(nproc)
+    make install
+
+    # Install NetCDF
+    cd $BASE_PATH/parflow/dependencies/netcdf-src
+    curl -L https://github.com/Unidata/netcdf-c/archive/v4.7.4.tar.gz | tar --strip-components=1 -xzv
+    CC=mpicc CPPFLAGS=-I$HDF5_DIR/include LDFLAGS=-L$HDF5_DIR/lib \
+    ./configure --disable-shared --disable-dap --prefix=${NETCDF_DIR}
+    make -j$(nproc)
+    make install
+
+    # Install Hypre
+    cd $BASE_PATH/parflow/dependencies/hypre-src
+    git clone https://github.com/hypre-space/hypre.git --single-branch --branch v2.19.0
+    cd hypre/src
+    ./configure --prefix=$HYPRE_DIR --with-MPI
+    make -j$(nproc)
+    make install
+
+    # Install Parflow
+    git clone -b master --depth 1 --single-branch https://github.com/parflow/parflow.git $BASE_PATH/parflow/src
+    $CMAKE \
+        -S $BASE_PATH/parflow/src \
+        -B $BASE_PATH/parflow/build \
+        -D CMAKE_BUILD_TYPE=Release \
+        -D HDF5_ROOT=$HDF5_DIR \
+        -D PARFLOW_ENABLE_HDF5=TRUE \
+        -D HYPRE_ROOT=$HYPRE_DIR \
+        -D PARFLOW_ENABLE_HYPRE=TRUE \
+        -D PARFLOW_ENABLE_SILO=TRUE \
+        -D SILO_ROOT=/opt/silo \
+        -D PARFLOW_HAVE_CLM=TRUE \
+        -D PARFLOW_ENABLE_TIMING=TRUE \
+        -D PARFLOW_AMPS_LAYER=mpi1 \
+        -D PARFLOW_AMPS_SEQUENTIAL_IO=TRUE \
+        -D PARFLOW_ENABLE_NETCDF=TRUE \
+        -D NETCDF_DIR=$NETCDF_DIR \
+        CURL_LIBRARY=/usr/lib/x86_64-linux-gnu/libcurl.so.4
+    $CMAKE --build $BASE_PATH/parflow/build
+    $CMAKE --install $BASE_PATH/parflow/build --prefix /opt/parflow
+
+    # Python packages
+    pip3 install subsettools
+
+%runscript
+    exec bash
+
+%labels
+    Author William M. Hasling
+    Version v1.0
+    
