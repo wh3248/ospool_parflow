@@ -1,0 +1,39 @@
+Login Instructions:
+
+    Login to Get SSH
+    https://portal.osg-htc.org/documentation/overview/account_setup/comanage-access/
+
+    https://portal.osg-htc.org/documentation/htc_workloads/workload_planning/roadmap/
+
+    https://portal.osg-htc.org/documentation/htc_workloads/submitting_workloads/tutorial-quickstart/
+
+    https://portal.osg-htc.org/documentation/htc_workloads/managing_data/overview/
+
+    https://portal.osg-htc.org/documentation/support_and_training/training/osgusertraining/
+
+SSH Login:
+    ssh william.hasling@ap40.uw.osg-htc.org
+Support Email:
+    mailto:support@osg-htc.org
+
+Office Hours:
+    Tuesdays, 4-5:30pm ET / 1-2:30pm PT
+    Thursdays, 11:30am-1pm ET / 8:30-10am PT
+
+    https://portal.osg-htc.org/documentation/support_and_training/support/getting-help-from-RCFs
+
+    Signup for Office Hours:
+        https://docs.google.com/forms/d/e/1FAIpQLSd3K78Xx1Vo-KjqW_2y0YKcUMXrEsKXWk3I1Aww64RL22QpnQ/viewform
+
+User Name:
+    william.hasling
+
+Inital Quota On head node:
+    Disk quotas for user william.hasling (uid 11459): 
+     Filesystem  blocks   quota   limit   grace   files   quota   limit   grace
+       /dev/md9  717912  41943040 52428800              19       0       0    
+
+Quota after one trivial parflow run:
+    Disk quotas for user william.hasling (uid 11459): 
+     Filesystem  blocks   quota   limit   grace   files   quota   limit   grace
+       /dev/md9  718948  41943040 52428800             152       0       0   

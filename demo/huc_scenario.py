@@ -1,6 +1,7 @@
 import pf_util
 import parflow
 import hf_hydrodata as hf
+import time
 
 def main():
     """
@@ -10,6 +11,7 @@ def main():
     """
 
     try:
+        duration_start = time.time()
         hf.register_api_pin("wh3248@princeton.edu", "0000")
         runname = "trival"
         directory_path = f"./{runname}"
@@ -40,8 +42,17 @@ def main():
         model = parflow.Run.from_definition(runscript_path)
         model.write(file_format="yaml")
 
+        input_duration = time.time() - duration_start
+
+        parflow_start = time.time()
         # Run the parflow model
         model.run()
+        parflow_duration = time.time() - parflow_start
+        full_duration = time.time() - duration_start
+        print(f"Duration {input_duration} seconds to collect inputs.")
+        print(f"Duration {parflow_duration} seconds to run parflow.")
+        print(f"Duration {full_duration} seconds to collect inputs and run parflow.")
+        print()
 
         # Verify the result
         time_step = time_steps - 1
