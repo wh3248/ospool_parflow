@@ -1,4 +1,4 @@
-import pf_util
+import project
 import parflow
 import hf_hydrodata as hf
 import time
@@ -16,8 +16,8 @@ def main():
         runname = "trival"
         directory_path = f"./{runname}"
 
-        start_time = "2005-10-01"
-        end_time = "2005-10-02"
+        start_date = "2005-10-01"
+        end_date = "2005-10-02"
         target_x = 3754
         target_y = 1588
         target_radius = 5
@@ -31,14 +31,14 @@ def main():
         parflow_options = {
             "grid_bounds": grid_bounds,
             "grid": "conus2",
-            "start_time": start_time,
-            "end_time": end_time,
+            "start_date": start_date,
+            "end_date": end_date,
             "time_steps": time_steps,
-            "forcing_day": start_time,
+            "forcing_day": start_date,
         }
 
         # Create the parflow model and generated input files
-        runscript_path = pf_util.create_project_dir(directory_path, parflow_options)
+        runscript_path = project.create_project(parflow_options, directory_path, )
         model = parflow.Run.from_definition(runscript_path)
         model.write(file_format="yaml")
 

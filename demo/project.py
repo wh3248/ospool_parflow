@@ -1,5 +1,6 @@
 """
-Utility to configure a parflow directory with files and runscript to be used to run parflow.
+Create and populate a parflow directory with input files and a runscript to be
+used by parflow to generate output simulation files for a subset domain.
 """
 
 # pylint: disable = C0301,R0914,W0632
@@ -12,47 +13,96 @@ import hf_hydrodata as hf
 import subsettools as st
 
 
-def create_project_dir(
-    directory_path: str,
-    options: dict,
-    template_path: str = "conus2_transient_solid.yaml",
-) -> str:
+def create_project(project_options: dict, directory_path: str = "project_dir") -> str:
     """
-    Create a parflow directory populated with files needed to run parflow.
-    Parameters:
-        directory_path: the path name to the directory where the parflow files are created.
-        options:        dict containing options used to generate the files for parflow inputs.
+    Create a parflow project directory to collect input files about a domain
+    that may be used to run parflow to generate the output files of a simulation.
 
-    The options dict supports the keys:
-        p:          the x size of the topology for pfb files (defaults to 1).
-        q:          the y size of the topology for pfb files (defaults to 1).
-        r:          the z size of the topology for pfb files (defaults to 1).
-        start_time: the start time of the run as string YYYY-mm-dd
-        end_time:   the end time of the run as string YYYY-mm-dd
-        time_steps: the number of timesteps to run parflow (defaults to # yours from start-stop).
-        hucs:       an array of HUC id to subset inputs and outputs (optional).
-        grid_bounds:the conus2 points to subset (min_x, min_y, max_x, max_y) (optional).
-        latlon_bounds: the latlon bounds to subset ((min,lat, min_lon),(max_lat, max_lon) (optional).
-        forcing_day:Use fixed forcing data for every input hour from this day (YYY-mm-dd).
-        precip:     Use this fixed precipitation value for every input hour (optional).
-        grid:       The grid size (only conus2 is supported) (defaults to conus2).
+    Parameters:
+        directory_path:     Path name to a directory where the parflow files are created.
+        project_options:    A dict of keys with options to run a parflow simulation.
+
+    The project_options dict supports the keys:
+        run_type:       Either "transient" or "spinup" (defaults to "transient").
+        template:       The path to a parflow yaml file for parflow parameters (optional).
+        start_date:     The start date of the run as as string YYYY-mm-dd.
+        end_date:       The end date of the run as as string YYYY-mm-dd.
+        time_steps:     The number of timesteps to run parflow (defaults to hours between start/end).
+        huc_id:         An array or comma seperated list of HUC id to subset inputs and outputs (optional).
+        grid_bounds:    The conus2 points to subset (min_x, min_y, max_x, max_y) (optional).
+        latlon_bounds:  The latlon bounds to subset ((min,lat, min_lon),(max_lat, max_lon) (optional).
+        forcing_day:    Use fixed forcing data for every input hour using this day (YYYY-mm-dd).
+        forcing_precip: Use this fixed precipitation value for every input hour (optional).
+        grid:           The grid size (only conus2 is supported now) (defaults to conus2).
+        topology:       An array or tuple [p, q, r] that defines the topology for generated pfb files.
 
     Only one of hucs, grid_bounds or latlon_bounds may be provided.
+    If template is provided this overrides the run_type.
+    The topology defaults to (1,1,1).
+
+    The hucs may be a string of a comma seperated list of HUC id or an array of HUC id.
+
+    Collects all required parflow input files into the directory_path.
+    This uses subsettools and hf_hydrodata to subset the input files to the domain
+    defined by hucs, grid_bounds, or latlon_bounds.
+
+    This uses pf_tools to run a parflow simulation and writes the output simulated files
+    into the same directory_path.
+
+    For more advanced usage of parflow you may specify your own parflow template and collect
+    additional input files into the project directory used by your template.
 
     Returns:
-        the path to the yaml runscript of the parflow model
-    """
-    runname = os.path.basename(directory_path)
-    runscript_path = create_runscript(runname, directory_path, template_path)
+        The runscript as a the path to the parflow yaml file generated in the directory path.
 
-    create_topology(runscript_path, options)
-    create_static_and_forcing(runscript_path, options, runname)
-    create_dist_files(runscript_path, options)
+    Example:
+
+    .. code-block:: python
+        project_options = {
+            "run_type": "transient",
+            "grid_bounds": [3749, 1583, 3759, 1593],
+            "start_date": "2005-10-01",
+            "end_date": "2005-10-02",
+            "time_steps": 10,
+            "topology": (1, 1, 1)
+        }
+        directory_path = "./trivial"
+
+        # Create the parflow model and generated input files
+        runscript_path = project.create_project(project_options, directory_path)
+
+        # Run the parflow model
+        model = parflow.Run.from_definition(runscript_path)
+        model.run()
+
+    """
+
+    runname = os.path.basename(directory_path)
+    run_type = project_options.get("run_type")
+    template = project_options.get("template")
+    if not template:
+        if run_type == "transient":
+            template = "conus2_transient_solid.yaml"
+        elif run_type == "spinup":
+            template = "conus2_spinup_solid.yaml"
+        elif run_type:
+            raise ValueError(
+                f"Unsupported run_type '{run_type}'. Must be transient or spinup."
+            )
+        else:
+            template = "conus2_transient_solid.yaml"
+    else:
+        template = "conus2_transient_solid.yaml"
+
+    runscript_path = _create_runscript(runname, directory_path, template)
+    _create_topology(runscript_path, project_options)
+    _create_static_and_forcing(runscript_path, project_options, runname)
+    _create_dist_files(runscript_path, project_options)
 
     return runscript_path
 
 
-def create_runscript(
+def _create_runscript(
     runname: str,
     directory_path: str,
     template_path="conus2_transient_solid.yaml",
@@ -81,16 +131,26 @@ def create_runscript(
     return runscript_path
 
 
-def create_topology(runscript_path: str, options: dict):
+def _create_topology(runscript_path: str, project_options: dict):
     """
     Create the topology files and add the references to the model and runscript.yaml file
     """
     model = parflow.Run.from_definition(runscript_path)
-    _, grid, ij_bounds, latlon_bounds, _, _ = get_time_space_options(options)
+    _, grid, ij_bounds, latlon_bounds, _, _ = _get_time_space_options(project_options)
 
-    p = int(options.get("p", "1"))
-    q = int(options.get("q", "1"))
-    r = int(options.get("r", "1"))
+    topology = project_options.get("topology")
+    topology = list(topology) if isinstance(topology, tuple) else topology
+    topology = [1, 1, 1] if not topology else topology
+    if not len(topology) == 3:
+        raise ValueError(
+            "The topology option in project options must be an array [p, q, r]"
+        )
+
+    p = int(topology[0])
+    q = int(topology[1])
+    r = int(topology[2])
+    if r != 1:
+        raise ValueError("The r dimension of the topology must be 1")
     model.Process.Topology.P = p
     model.Process.Topology.Q = q
     model.Process.Topology.R = r
@@ -118,14 +178,14 @@ def create_topology(runscript_path: str, options: dict):
     model.write(file_format="yaml")
 
 
-def create_static_and_forcing(runscript_path: str, options: dict, runname: str):
+def _create_static_and_forcing(runscript_path: str, options: dict, runname: str):
     """
     Create the static input and forcing files and add the references to the model and runscript.yaml file
     """
     model = parflow.Run.from_definition(runscript_path)
     directory_path = os.path.dirname(runscript_path)
 
-    mask, grid, ij_bounds, _, start_time, end_time = get_time_space_options(options)
+    mask, grid, ij_bounds, _, start_date, end_date = _get_time_space_options(options)
 
     st.write_mask_solid(mask=mask, grid=grid, write_dir=directory_path)
 
@@ -133,8 +193,8 @@ def create_static_and_forcing(runscript_path: str, options: dict, runname: str):
     static_paths = st.subset_static(ij_bounds, dataset=var_ds, write_dir=directory_path)
     st.config_clm(
         ij_bounds,
-        start=start_time,
-        end=end_time,
+        start=start_date,
+        end=end_date,
         dataset=var_ds,
         write_dir=directory_path,
     )
@@ -146,8 +206,8 @@ def create_static_and_forcing(runscript_path: str, options: dict, runname: str):
     if forcing_day:
         # use fixed values for all forcing hour inputs
         precip = options.get("precip", None)
-        start_time_dt = datetime.datetime.strptime(start_time, "%Y-%m-%d")
-        end_time_dt = datetime.datetime.strptime(end_time, "%Y-%m-%d")
+        start_time_dt = datetime.datetime.strptime(start_date, "%Y-%m-%d")
+        end_time_dt = datetime.datetime.strptime(end_date, "%Y-%m-%d")
         forcing_variables = [
             "downward_shortwave",
             "precipitation",
@@ -198,8 +258,8 @@ def create_static_and_forcing(runscript_path: str, options: dict, runname: str):
         st.subset_forcing(
             ij_bounds,
             grid=grid,
-            start=start_time,
-            end=end_time,
+            start=start_date,
+            end=end_date,
             dataset=forcing_ds,
             write_dir=forcing_dir_path,
         )
@@ -228,7 +288,7 @@ def create_static_and_forcing(runscript_path: str, options: dict, runname: str):
     model.write(file_format="yaml")
 
 
-def create_dist_files(runscript_path: str, options: dict):
+def _create_dist_files(runscript_path: str, options: dict):
     """
     Create the parflow .dist files for the generated pfb files in the parflow directory.
     """
@@ -247,9 +307,9 @@ def create_dist_files(runscript_path: str, options: dict):
     time_steps = options.get("time_steps", None)
     if time_steps is None:
         # If time_steps is not set in the options use the hours between start and end time
-        _, _, _, _, start_time, end_time = get_time_space_options(options)
-        start_time_dt = datetime.datetime.strptime(start_time, "%Y-%m-%d")
-        end_time_dt = datetime.datetime.strptime(end_time, "%Y-%m-%d")
+        _, _, _, _, start_date, end_date = _get_time_space_options(options)
+        start_time_dt = datetime.datetime.strptime(start_date, "%Y-%m-%d")
+        end_time_dt = datetime.datetime.strptime(end_date, "%Y-%m-%d")
         days_between = (end_time_dt - start_time_dt).days
         model.TimingInfo.StopTime = 24 * int(days_between)
     else:
@@ -261,20 +321,21 @@ def create_dist_files(runscript_path: str, options: dict):
     model.write(file_format="yaml")
 
 
-def get_time_space_options(options):
+def _get_time_space_options(options):
     """
     Get the time and space options from the input options.
     Returns:
-        (grid, ij_bounds, latlon_bounds, start_time, end_time)
+        (grid, ij_bounds, latlon_bounds, start_date, end_date)
     """
 
     grid_bounds = options.get("grid_bounds", None)
     latlon_bounds = options.get("latlon_bounds", None)
-    hucs = options.get("hucs", None)
+    huc_id = options.get("huc_id", None)
     grid = options.get("grid", "conus2")
-    start_time = options.get("start_time", "2001-01-01")
-    end_time = options.get("end_time", "2001-01-02")
-    if hucs:
+    start_date = options.get("start_date", "2001-01-01")
+    end_date = options.get("end_date", "2001-01-02")
+    if huc_id:
+        hucs = list(huc_id) if isinstance(huc_id, tuple) else huc_id if isinstance(huc_id, list) else huc_id.split(",")
         ij_bounds, mask = st.define_huc_domain(hucs=hucs, grid=grid)
         lat_min, lon_min = hf.to_latlon(grid, ij_bounds[0], ij_bounds[1])
         lat_max, lon_max = hf.to_latlon(grid, ij_bounds[2] - 1, ij_bounds[3] - 1)
@@ -292,4 +353,4 @@ def get_time_space_options(options):
         ij_bounds, mask = st.define_latlon_domain(latlon_bounds, grid)
     else:
         raise ValueError("Must specify in options hucs, grid_bounds, or latlon_bounds")
-    return (mask, grid, ij_bounds, latlon_bounds, start_time, end_time)
+    return (mask, grid, ij_bounds, latlon_bounds, start_date, end_date)
