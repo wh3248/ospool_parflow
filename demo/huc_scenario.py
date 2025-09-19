@@ -37,16 +37,16 @@ def main():
             "forcing_day": start_date,
         }
 
-        # Create the parflow model and generated input files
+        # Create the parflow model and generated the input files
         runscript_path = project.create_project(parflow_options, directory_path, )
-        model = parflow.Run.from_definition(runscript_path)
-        model.write(file_format="yaml")
 
-        input_duration = time.time() - duration_start
-
-        parflow_start = time.time()
         # Run the parflow model
+        input_duration = time.time() - duration_start
+        parflow_start = time.time()
+        model = parflow.Run.from_definition(runscript_path)
         model.run()
+
+        # Print timing
         parflow_duration = time.time() - parflow_start
         full_duration = time.time() - duration_start
         print(f"Duration {input_duration} seconds to collect inputs.")
